@@ -9,10 +9,6 @@ class CloudFormation {
     this.wrappers = promisifyService(throttle, cf, ['describeStacks']);
   }
 
-  async write() {
-    throw new Error("CloudFormation outputs are read-only.");
-  }
-
   async read(stack) {
     const res = await this.wrappers.describeStacks({ StackName: stack });
     if (res.Stacks.length === 0) {

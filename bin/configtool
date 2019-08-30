@@ -27,7 +27,7 @@ function parseArgs() {
   hab.addArgument(["--group"], { help: "The Habitat service group, e.g. prod.", defaultValue: "default" });
 
   const ps = subparsers.addParser("ps", { addHelp: true });
-  ps.addArgument("mode", { choices: ["read", "write"] });
+  ps.addArgument("mode", { choices: ["read", "write", "delete"] });
   ps.addArgument("service", { help: "The Hubs service name, e.g. janus-gateway." });
   ps.addArgument(["--region"], { help: "The AWS region to talk to.", defaultValue: "us-west-1" });
   ps.addArgument(["--creds"], { help: "The AWS credentials file." });
@@ -120,6 +120,10 @@ async function run(args) {
     case "write": {
       const input = deserialize(await readToEnd(process.stdin), args.format);
       await ps.write(args.service, input);
+      return;
+    }
+    case "delete": {
+      await ps.delete(args.service);
       return;
     }
     default: throw new Error(`Invalid mode '${args.mode}'.`);

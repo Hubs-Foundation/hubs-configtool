@@ -33,7 +33,7 @@ class ParameterStore {
     // when putting a configuration worth of values. 5 per second does.
     const throttle = new PromiseThrottle({ requestsPerSecond: 2 });
     const ssm = new AWS.SSM({ region, accessKeyId, secretAccessKey });
-    this.wrappers = promisifyService(throttle, ssm, ['getParameter', 'getParametersByPath', 'putParameter']);
+    this.wrappers = promisifyService(throttle, ssm, ['deleteParameters', 'getParametersByPath', 'putParameter']);
   }
 
   async _putValue(path, val) {
@@ -61,21 +61,35 @@ class ParameterStore {
     }
   }
 
+  async _getAllParameters(opts) {
+    let result = [];
+    do {
+      const res = await this.wrappers.getParametersByPath(opts);
+      Array.prototype.push.apply(result, res.Parameters);
+      opts.NextToken = res.NextToken;
+    } while(opts.NextToken != null);
+    return result;
+  }
+
+  async delete(service) {
+    const params = await this._getAllParameters({ Path: `/${service}`, Recursive: true });
+    const names = params.map(p => p.Name);
+    for (let i = 0; i < names.length; i += 10) { // API only lets you delete ten at once
+      await this.wrappers.deleteParameters({ Names: names.slice(i, i + 10) });
+    }
+  }
+
   async write(service, config) {
     return this._putSubtree(`/${service}`, config);
   }
 
   async read(service) {
     let pairs = [];
-    let nextToken = null;
-    do {
-      const res = await this.wrappers.getParametersByPath({ Path: `/${service}`, Recursive: true, NextToken: nextToken, WithDecryption: true });
-      for (const p of res.Parameters) {
-        const val = p.Type === "StringList" ? p.Value.split(",") : p.Value;
-        pairs.push([nameToPath(p.Name), val]);
-      }
-      nextToken = res.NextToken;
-    } while(nextToken != null);
+    const params = await this._getAllParameters({ Path: `/${service}`, Recursive: true, WithDecryption: true });
+    for (const p of params) {
+      const val = p.Type === "StringList" ? p.Value.split(",") : p.Value;
+      pairs.push([nameToPath(p.Name), val]);
+    }
     return treeify(pairs)[service];
   }
 }
