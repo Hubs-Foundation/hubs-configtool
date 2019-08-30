@@ -1,0 +1,27 @@
+{
+  "name": "hubs-configtool",
+  "version": "0.0.1",
+  "private": true,
+  "description": "A tool for reading and writing Hubs configs from the various stores.",
+  "repository": "github:MozillaReality/hubs-configtool",
+  "main": "src/index.js",
+  "scripts": {
+    "lint": "eslint src",
+    "test": "tape tests/*.js"
+  },
+  "engines": {
+    "node": ">=10.0.0"
+  },
+  "devDependencies": {
+    "eslint": "^6.0.1",
+    "eslint-plugin-node": "^8.0.1",
+    "tape": "^4.11.0"
+  },
+  "dependencies": {
+    "@iarna/toml": "^2.2.3",
+    "argparse": "^1.0.10",
+    "aws-sdk": "^2.518.0",
+    "promise-throttle": "^1.0.1",
+    "safe-stable-stringify": "^1.1.0"
+  }
+}

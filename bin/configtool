@@ -1,0 +1,144 @@
+#!/usr/bin/node
+const childProcess = require('child_process');
+const os = require('os');
+const fs = require("fs");
+const util = require("util");
+const path = require("path");
+const configtool = require("../src/index.js");
+const jsonStringify = require('safe-stable-stringify');
+const toml = require('@iarna/toml');
+const { ArgumentParser } = require('argparse');
+const { readCredentials } = require("../src/aws-utils.js");
+
+function parseArgs() {
+  const parser = new ArgumentParser({
+    addHelp: true,
+    description: 'Tool for reading and writing Hubs configuration. In read mode, this tool reads from a configuration store and writes to standard output. In write mode, it reads from standard input and writes to a configuration store.'
+  });
+  parser.addArgument("--format", { choices: ["json", "toml"], defaultValue: "json", help: "The input/output format for configuration data." })
+  const subparsers = parser.addSubparsers({ title: "store", dest: "store", help: "The backing store to read or write configuration from." });
+
+  const hab = subparsers.addParser("hab", { addHelp: true });
+  hab.addArgument("mode", { choices: ["read", "write"] });
+  hab.addArgument("service", { help: "The Hubs service name, e.g. janus-gateway." });
+  hab.addArgument(["--host"], { help: "The Habitat host to talk to.", defaultValue: "localhost" });
+  hab.addArgument(["--httpPort"], { help: "The Habitat web API port.", defaultValue: 9631 });
+  hab.addArgument(["--controlPort"], { help: "The Habitat suprvisor control port.", defaultValue: 9632 });
+  hab.addArgument(["--group"], { help: "The Habitat service group, e.g. prod.", defaultValue: "default" });
+
+  const ps = subparsers.addParser("ps", { addHelp: true });
+  ps.addArgument("mode", { choices: ["read", "write"] });
+  ps.addArgument("service", { help: "The Hubs service name, e.g. janus-gateway." });
+  ps.addArgument(["--region"], { help: "The AWS region to talk to.", defaultValue: "us-west-1" });
+  ps.addArgument(["--creds"], { help: "The AWS credentials file." });
+
+  const cf = subparsers.addParser("cf", { addHelp: true });
+  cf.addArgument("mode", { choices: ["read"] });
+  cf.addArgument("stack", { help: "The name of the stack to get outputs from." });
+  cf.addArgument(["--region"], { help: "The AWS region to talk to.", defaultValue: "us-west-1" });
+  cf.addArgument(["--creds"], { help: "The AWS credentials file." });
+
+  return parser.parseArgs();
+}
+
+function deserialize(str, format) {
+  switch (format) {
+  case "toml": { return toml.parse(str); }
+  case "json": { return JSON.parse(str); }
+  default: throw new Error(`Invalid format {format}.`);
+  }
+}
+
+function serialize(obj, format) {
+  // make sure serialization is deterministic so we can diff things easily
+  switch (format) {
+  case "toml": { return toml.stringify(obj); }
+  case "json": { return jsonStringify(obj); }
+  default: throw new Error(`Invalid format {format}.`);
+  }
+}
+
+// Returns a promise resolving with the path of the given command in your shell,
+// if Node can find it. If it isn't found, then reject.
+function commandExists(commandName) {
+  return new Promise((resolve, reject) => {
+    childProcess.exec(`command -v ${commandName}`, function(err, stdout, stderr) {
+      if (stdout) {
+        resolve(stdout.trim());
+      } else {
+        reject(new Error(stderr.trim()));
+      }
+    });
+  });
+}
+
+async function readToEnd(stream) {
+  let buffer = Buffer.alloc(0);
+  for await (const chunk of stream) {
+    buffer = Buffer.concat([buffer, chunk]);
+  }
+  return buffer.toString('utf8');
+}
+
+async function run(args) {
+  switch (args.store) {
+  case "hab": {
+
+    if (!(await commandExists("hab"))) {
+      throw new Error("Habitat binary not found. Please make sure the Habitat CLI is on your PATH.");
+    }
+
+    const hab = new configtool.Habitat(args.host, args.httpPort, args.controlPort);
+    switch (args.mode) {
+    case "read": {
+      const output = await hab.read(args.service, args.group);
+      console.log(serialize(output, args.format));
+      return;
+    }
+    case "write": {
+      // version is by convention across hubs habitat stuff
+      const version = Math.floor(Date.now() / 1000);
+      const input = deserialize(await readToEnd(process.stdin), args.format);
+      await hab.write(args.service, args.group, input, version);
+      return;
+    }
+    default: throw new Error(`Invalid mode '${args.mode}'.`);
+    }
+    break;
+  }
+
+  case "ps": {
+    const credsPath = args.creds ? args.creds : path.join(os.homedir(), ".aws", "credentials");
+    const { accessKeyId, secretAccessKey } = await readCredentials(credsPath);
+    const ps = new configtool.ParameterStore(args.region, accessKeyId, secretAccessKey);
+    switch (args.mode) {
+    case "read": {
+      const output = await ps.read(args.service);
+      console.log(serialize(output, args.format));
+      return;
+    }
+    case "write": {
+      const input = deserialize(await readToEnd(process.stdin), args.format);
+      await ps.write(args.service, input);
+      return;
+    }
+    default: throw new Error(`Invalid mode '${args.mode}'.`);
+    }
+  }
+
+  case "cf": {
+    const credsPath = args.creds ? args.creds : path.join(os.homedir(), ".aws", "credentials");
+    const { accessKeyId, secretAccessKey } = await readCredentials(credsPath);
+    const cf = new configtool.CloudFormation(args.region, accessKeyId, secretAccessKey);
+    const output = await cf.read(args.stack);
+    console.log(serialize(output, args.format));
+    return;
+  }
+  default: throw new Error(`Invalid store '${args.store}'.`);
+}
+}
+
+run(parseArgs()).catch(err => {
+  console.error(err);
+  process.exit(1);
+});
