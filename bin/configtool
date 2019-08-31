@@ -32,12 +32,6 @@ function parseArgs() {
   ps.addArgument(["--region"], { help: "The AWS region to talk to.", defaultValue: "us-west-1" });
   ps.addArgument(["--creds"], { help: "The AWS credentials file." });
 
-  const cf = subparsers.addParser("cf", { addHelp: true });
-  cf.addArgument("mode", { choices: ["read"] });
-  cf.addArgument("stack", { help: "The name of the stack to get outputs from." });
-  cf.addArgument(["--region"], { help: "The AWS region to talk to.", defaultValue: "us-west-1" });
-  cf.addArgument(["--creds"], { help: "The AWS credentials file." });
-
   return parser.parseArgs();
 }
 
@@ -130,14 +124,6 @@ async function run(args) {
     }
   }
 
-  case "cf": {
-    const credsPath = args.creds ? args.creds : path.join(os.homedir(), ".aws", "credentials");
-    const { accessKeyId, secretAccessKey } = await readCredentials(credsPath);
-    const cf = new configtool.CloudFormation(args.region, accessKeyId, secretAccessKey);
-    const output = await cf.read(args.stack);
-    console.log(serialize(output, args.format));
-    return;
-  }
   default: throw new Error(`Invalid store '${args.store}'.`);
 }
 }
