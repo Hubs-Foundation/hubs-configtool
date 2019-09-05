@@ -1,5 +1,6 @@
 const PromiseThrottle = require('promise-throttle');
 const AWS = require("aws-sdk");
+const debug = require("debug")("configtool:ps");
 const { promisifyService } = require("./aws-utils");
 
 // Takes a series of [path, value] pairs, e.g. [["foo", "baz"], 1], [["foo", "bar"], 2]],
@@ -37,13 +38,13 @@ class ParameterStore {
   }
 
   async _putValue(path, val) {
-    // console.log(`Writing ${path}: ${val}.`);
+    debug(`Writing parameter ${path} = ${val}...`);
     return this.wrappers.putParameter({ Name: path, Value: val, Overwrite: true, Type: "String" });
   }
 
   async _putList(path, vals) {
     // todo: deal with commas in values
-    // console.log(`Writing ${path}: ${vals}.`);
+    debug(`Writing parameter ${path} = ${vals.join(',')}...`);
     return this.wrappers.putParameter({ Name: path, Value: vals.join(','), Overwrite: true, Type: "StringList" });
   }
 
@@ -63,7 +64,9 @@ class ParameterStore {
 
   async _getAllParameters(opts) {
     let result = [];
+    let i = 0;
     do {
+      debug(`Requesting parameters for ${opts.Path} (${++i})...`);
       const res = await this.wrappers.getParametersByPath(opts);
       Array.prototype.push.apply(result, res.Parameters);
       opts.NextToken = res.NextToken;
@@ -75,6 +78,7 @@ class ParameterStore {
     const params = await this._getAllParameters({ Path: `/${service}`, Recursive: true });
     const names = params.map(p => p.Name);
     for (let i = 0; i < names.length; i += 10) { // API only lets you delete ten at once
+      debug(`Deleting parameters for /${service} (${i + 1}/${names.length + 1})...`);
       await this.wrappers.deleteParameters({ Names: names.slice(i, i + 10) });
     }
   }
