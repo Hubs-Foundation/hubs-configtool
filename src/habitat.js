@@ -75,21 +75,22 @@ function sanitizeTree(obj) {
 }
 
 class Habitat {
-  constructor(host = "localhost", httpPort = 9631, controlPort = 9632) {
-    this.host = host;
+  constructor(httpHost = "localhost", httpPort = 9631, supHost = "localhost", supPort = 9632) {
+    this.httpHost = httpHost;
     this.httpPort = httpPort;
-    this.controlPort = controlPort;
+    this.supHost = supHost;
+    this.supPort = supPort;
   }
 
   async write(service, group, config, version) {
-    const remote =`${this.host}:${this.controlPort}`;
+    const remote =`${this.supHost}:${this.supPort}`;
     const args = ["config", "apply", "-r", remote, `${service}.${group}`, version];
     const input = toml.stringify(config);
     return promisifyCommand('hab', args, input);
   }
 
   async read(service, group) {
-    const res = await fetchConfig(this.host, this.httpPort, service, group);
+    const res = await fetchConfig(this.httpHost, this.httpPort, service, group);
     return sanitizeTree(res);
   }
 }
