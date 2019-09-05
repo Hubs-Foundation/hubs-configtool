@@ -17,8 +17,8 @@ function promisifyService(throttle, service, methodNames) {
 
 // Reads credentials from an AWS credential config file at path.
 // (See https://docs.aws.amazon.com/sdk-for-java/v1/developer-guide/setup-credentials.html).
-async function readCredentials(path) {
-  const creds = await (util.promisify(fs.readFile))(path);
+function readCredentials(path) {
+  const creds = fs.readFileSync(path);
   const accessKeyId = /aws_access_key_id = (.+)\n/.exec(creds)[1];
   const secretAccessKey = /aws_secret_access_key = (.+)\n/.exec(creds)[1];
   return { accessKeyId, secretAccessKey };

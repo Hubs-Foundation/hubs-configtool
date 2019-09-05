@@ -103,7 +103,7 @@ async function run(args) {
 
   case "ps": {
     const credsPath = args.creds ? args.creds : path.join(os.homedir(), ".aws", "credentials");
-    const { accessKeyId, secretAccessKey } = await readCredentials(credsPath);
+    const { accessKeyId, secretAccessKey } = readCredentials(credsPath);
     const ps = new configtool.ParameterStore(args.region, accessKeyId, secretAccessKey);
     switch (args.mode) {
     case "read": {
