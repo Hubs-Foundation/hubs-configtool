@@ -39,25 +39,17 @@ class ParameterStore {
 
   async _putValue(path, val) {
     debug(`Writing parameter ${path} = ${val}...`);
-    return this.wrappers.putParameter({ Name: path, Value: val, Overwrite: true, Type: "String" });
-  }
-
-  async _putList(path, vals) {
-    // todo: deal with commas in values
-    debug(`Writing parameter ${path} = ${vals.join(',')}...`);
-    return this.wrappers.putParameter({ Name: path, Value: vals.join(','), Overwrite: true, Type: "StringList" });
+    return this.wrappers.putParameter({ Name: path, Value: JSON.stringify(val), Overwrite: true, Type: "String" });
   }
 
   async _putSubtree(path, subtree) {
     for (const k in subtree) {
       const v = subtree[k];
       const subpath = `${path}/${k}`;
-      if (Array.isArray(v)) {
-        await this._putList(subpath, v);
-      } else if (typeof v === 'object') {
+      if (typeof v === 'object') {
         await this._putSubtree(subpath, v);
       } else {
-        await this._putValue(subpath, v.toString());
+        await this._putValue(subpath, v);
       }
     }
   }
@@ -91,8 +83,12 @@ class ParameterStore {
     let pairs = [];
     const params = await this._getAllParameters({ Path: `/${service}`, Recursive: true, WithDecryption: true });
     for (const p of params) {
-      const val = p.Type === "StringList" ? p.Value.split(",") : p.Value;
-      pairs.push([nameToPath(p.Name), val]);
+      try {
+        const val = JSON.parse(p.Value);
+        pairs.push([nameToPath(p.Name), val]);
+      } catch (err) {
+        debug(`Failed to read non-JSON config value: ${p.Name} = ${p.Value}`);
+      }
     }
     return treeify(pairs)[service];
   }
