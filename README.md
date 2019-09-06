@@ -2,9 +2,7 @@
 
 Tool for reading and writing Hubs configuration values. WIP.
 
-This tool coerces all configuration into a tree of values, where each value can either be a string or a list of
-strings. (This is basically the AWS Parameter Store type system.) So any richer types in e.g. TOML configuration, like
-numbers, will be stringified upon reading and writing.
+This tool coerces all configuration into a tree of values, where each value can either be a string, number, or a list of values. So any richer types in e.g. TOML configuration, like dates, will be stringified upon reading and writing.
 
 ## Running it
 

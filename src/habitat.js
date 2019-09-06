@@ -55,9 +55,7 @@ function isEmptyObject(obj) {
 }
 
 // Coerce Habitat config output into our typical cross-store config output.
-// Returns a new identical object with non-array, non-object, non-string
-// property values recursively having been converted to strings, and
-// empty objects having been toasted.
+// Returns a new identical object with empty objects having been toasted.
 function sanitizeTree(obj) {
   if (Array.isArray(obj)) {
     return obj.map(v => sanitizeTree(v));
@@ -71,7 +69,7 @@ function sanitizeTree(obj) {
     }
     return res;
   } else {
-    return obj.toString();
+    return obj;
   }
 }
 
