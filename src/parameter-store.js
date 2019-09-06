@@ -46,7 +46,9 @@ class ParameterStore {
     for (const k in subtree) {
       const v = subtree[k];
       const subpath = `${path}/${k}`;
-      if (typeof v === 'object') {
+      if (Array.isArray(v)) {
+        await this._putValue(subpath, v);
+      } else if (typeof v === 'object') {
         await this._putSubtree(subpath, v);
       } else {
         await this._putValue(subpath, v);
