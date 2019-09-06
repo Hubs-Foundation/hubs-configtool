@@ -29,11 +29,11 @@ function nameToPath(parameterName) {
 }
 
 class ParameterStore {
-  constructor(region, accessKeyId, secretAccessKey) {
+  constructor(ssmOptions) {
     // experimentally, this doesn't seem to trigger rate limiting
     // when putting a configuration worth of values. 5 per second does.
     const throttle = new PromiseThrottle({ requestsPerSecond: 2 });
-    const ssm = new AWS.SSM({ region, accessKeyId, secretAccessKey });
+    const ssm = new AWS.SSM(ssmOptions);
     this.wrappers = promisifyService(throttle, ssm, ['deleteParameters', 'getParametersByPath', 'putParameter']);
   }
 

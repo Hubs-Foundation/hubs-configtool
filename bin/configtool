@@ -8,7 +8,6 @@ const configtool = require("../src/index.js");
 const jsonStringify = require('safe-stable-stringify');
 const toml = require('@iarna/toml');
 const { ArgumentParser } = require('argparse');
-const { readCredentials } = require("../src/aws-utils.js");
 
 function parseArgs() {
   const parser = new ArgumentParser({
@@ -30,8 +29,6 @@ function parseArgs() {
   ps.addArgument("mode", { choices: ["read", "write", "delete"] });
   ps.addArgument("service", { help: "The Hubs service name, e.g. janus-gateway." });
   ps.addArgument(["--region"], { help: "The AWS region to talk to.", defaultValue: "us-west-1" });
-  ps.addArgument(["--creds"], { help: "The AWS credentials file." });
-
   return parser.parseArgs();
 }
 
@@ -102,9 +99,7 @@ async function run(args) {
   }
 
   case "ps": {
-    const credsPath = args.creds ? args.creds : path.join(os.homedir(), ".aws", "credentials");
-    const { accessKeyId, secretAccessKey } = readCredentials(credsPath);
-    const ps = new configtool.ParameterStore(args.region, accessKeyId, secretAccessKey);
+    const ps = new configtool.ParameterStore({ region: args.region });
     switch (args.mode) {
     case "read": {
       const output = await ps.read(args.service);
