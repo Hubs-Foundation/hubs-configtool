@@ -1,7 +1,8 @@
+const fs = require("fs");
+const util = require("util");
 const PromiseThrottle = require('promise-throttle');
 const AWS = require("aws-sdk");
 const debug = require("debug")("configtool:ps");
-const { promisifyService } = require("./aws-utils");
 
 // Takes a series of [path, value] pairs, e.g. [["foo", "baz"], 1], [["foo", "bar"], 2]],
 // and converts them into a Javascript object, e.g. { "foo": { "bar": 2 }, { "baz": 1 } }.
@@ -28,39 +29,55 @@ function nameToPath(parameterName) {
   return parameterName.split("/");
 }
 
+// Replaces the given callback-style methods on the `service` object
+// with ones that return a promise. Useful for wrapping AWS SDK interfaces to be more usable.
+function promisifyService(service, methodNames) {
+  const wrappers = {};
+  for (const mn of methodNames) {
+    wrappers[mn] = util.promisify(service[mn]).bind(service);
+  }
+  return wrappers;
+}
+
 class ParameterStore {
-  constructor(ssmOptions, requestsPerSecond = 2) {
-    // experimentally, the free tier requests per second PS can handle seems between 2 and 5
-    const throttle = new PromiseThrottle({ requestsPerSecond });
+  constructor(ssmOptions, requestsPerSecond = 3) {
+    // experimentally, the free tier requests per second PS can handle seems south of 4
     const ssm = new AWS.SSM(ssmOptions);
-    this.wrappers = promisifyService(throttle, ssm, ['deleteParameters', 'getParametersByPath', 'putParameter']);
+    this.throttle = new PromiseThrottle({ requestsPerSecond });
+    this.wrappers = promisifyService(ssm, ['deleteParameters', 'getParametersByPath', 'putParameter']);
   }
 
   async _putValue(path, val) {
-    debug(`Writing parameter ${path} = ${val}...`);
-    return this.wrappers.putParameter({ Name: path, Value: JSON.stringify(val), Overwrite: true, Type: "String" });
+    return this.throttle.add(() => {
+      debug(`Writing parameter ${path} = ${val}...`);
+      return this.wrappers.putParameter({ Name: path, Value: JSON.stringify(val), Overwrite: true, Type: "String" });
+    });
   }
 
   async _putSubtree(path, subtree) {
+    const results = [];
     for (const k in subtree) {
       const v = subtree[k];
       const subpath = `${path}/${k}`;
       if (Array.isArray(v)) {
-        await this._putValue(subpath, v);
+        results.push(this._putValue(subpath, v));
       } else if (typeof v === 'object') {
-        await this._putSubtree(subpath, v);
+        results.push(this._putSubtree(subpath, v));
       } else {
-        await this._putValue(subpath, v);
+        results.push(this._putValue(subpath, v));
       }
     }
+    return Promise.all(results);
   }
 
   async _getAllParameters(opts) {
     let result = [];
     let i = 0;
     do {
-      debug(`Requesting parameters for ${opts.Path} (${++i})...`);
-      const res = await this.wrappers.getParametersByPath(opts);
+      const res = await this.throttle.add(() => {
+        debug(`Requesting parameters for ${opts.Path} (${++i})...`);
+        return this.wrappers.getParametersByPath(opts);
+      });
       Array.prototype.push.apply(result, res.Parameters);
       opts.NextToken = res.NextToken;
     } while(opts.NextToken != null);
@@ -70,10 +87,15 @@ class ParameterStore {
   async delete(service) {
     const params = await this._getAllParameters({ Path: `/${service}`, Recursive: true });
     const names = params.map(p => p.Name);
+    const results = [];
     for (let i = 0; i < names.length; i += 10) { // API only lets you delete ten at once
-      debug(`Deleting parameters for /${service} (${i + 1}/${names.length + 1})...`);
-      await this.wrappers.deleteParameters({ Names: names.slice(i, i + 10) });
+      results.push(this.throttle.add(() => {
+        const toDelete = names.slice(i, i + 10);
+        debug(`Deleting parameters for /${service} (${i + 1}-${i + toDelete.length}/${names.length})...`);
+        return this.wrappers.deleteParameters({ Names: toDelete });
+      }));
     }
+    return Promise.all(results);
   }
 
   async write(service, config) {
