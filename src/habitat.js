@@ -30,7 +30,7 @@ function promisifyCommand(cmd, args, stdin) {
 function fetchConfig(host, port, service, group) {
   const path = `/services/${service}/${group}/config`;
   return new Promise((resolve, reject) => {
-    http.get({ host, port, path }, res => {
+    const req = http.request({ method: 'GET', host, port, path }, res => {
       if (res.statusCode === 404) {
         reject(new Error(`Service group ${service}.${group} not found.`));
       } else if (res.statusCode !== 200) {
@@ -47,6 +47,10 @@ function fetchConfig(host, port, service, group) {
         });
       }
     });
+    req.on('error', err => {
+      reject(err);
+    });
+    req.end();
   });
 }
 
