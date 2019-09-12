@@ -40,10 +40,11 @@ function promisifyService(service, methodNames) {
 }
 
 class ParameterStore {
-  constructor(ssmOptions, requestsPerSecond = 3) {
+  constructor(ssmOptions, pathPrefix = null, requestsPerSecond = 3) {
     // experimentally, the free tier requests per second PS can handle seems south of 4
     const ssm = new AWS.SSM(ssmOptions);
     this.throttle = new PromiseThrottle({ requestsPerSecond });
+    this.pathPrefix = pathPrefix ? `${pathPrefix}/` : "";
     this.wrappers = promisifyService(ssm, ['deleteParameters', 'getParametersByPath', 'putParameter']);
   }
 
@@ -85,7 +86,7 @@ class ParameterStore {
   }
 
   async delete(service) {
-    const params = await this._getAllParameters({ Path: `/${service}`, Recursive: true });
+    const params = await this._getAllParameters({ Path: `/${this.pathPrefix}${service}`, Recursive: true });
     const names = params.map(p => p.Name);
     const results = [];
     for (let i = 0; i < names.length; i += 10) { // API only lets you delete ten at once
@@ -99,12 +100,12 @@ class ParameterStore {
   }
 
   async write(service, config) {
-    return this._putSubtree(`/${service}`, config);
+    return this._putSubtree(`/${this.pathPrefix}${service}`, config);
   }
 
   async read(service) {
     let pairs = [];
-    const params = await this._getAllParameters({ Path: `/${service}`, Recursive: true, WithDecryption: true });
+    const params = await this._getAllParameters({ Path: `/${this.pathPrefix}${service}`, Recursive: true, WithDecryption: true });
     for (const p of params) {
       try {
         const val = JSON.parse(p.Value);
