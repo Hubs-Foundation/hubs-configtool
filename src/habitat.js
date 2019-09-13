@@ -2,6 +2,7 @@ const http = require('http');
 const toml = require('@iarna/toml');
 const debug = require("debug")("configtool:hab");
 const childProcess = require('child_process');
+const habCommand = process.env.HAB_COMMAND || 'hab';
 
 // Runs the given command and arguments as a subprocess, passes the provided
 // string into stdin, and returns a promise that either resolves to stdout or
@@ -90,7 +91,7 @@ class Habitat {
     const args = ["config", "apply", "-r", remote, `${service}.${group}`, version];
     const input = toml.stringify(config);
     debug(`Invoking hab: hab ${args.join(" ")}`);
-    return promisifyCommand('hab', args, input);
+    return promisifyCommand(habCommand, args, input);
   }
 
   async read(service, group) {
