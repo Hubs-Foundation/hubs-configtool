@@ -44,7 +44,7 @@ class ParameterStore {
     // experimentally, the free tier requests per second PS can handle seems south of 4
     const ssm = new AWS.SSM(ssmOptions);
     this.throttle = new PromiseThrottle({ requestsPerSecond });
-    this.pathPrefix = pathPrefix ? `${pathPrefix}/` : "";
+    this.pathPrefix = pathPrefix;
     this.wrappers = promisifyService(ssm, ['deleteParameters', 'getParametersByPath', 'putParameter']);
   }
 
