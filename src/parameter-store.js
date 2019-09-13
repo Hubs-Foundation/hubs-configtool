@@ -86,7 +86,7 @@ class ParameterStore {
   }
 
   async delete(service) {
-    const params = await this._getAllParameters({ Path: `/${this.pathPrefix}${service}`, Recursive: true });
+    const params = await this._getAllParameters({ Path: `${this.pathPrefix}/${service}`, Recursive: true });
     const names = params.map(p => p.Name);
     const results = [];
     for (let i = 0; i < names.length; i += 10) { // API only lets you delete ten at once
@@ -100,12 +100,12 @@ class ParameterStore {
   }
 
   async write(service, config) {
-    return this._putSubtree(`/${this.pathPrefix}${service}`, config);
+    return this._putSubtree(`${this.pathPrefix}/${service}`, config);
   }
 
   async read(service) {
     let pairs = [];
-    const params = await this._getAllParameters({ Path: `/${this.pathPrefix}${service}`, Recursive: true, WithDecryption: true });
+    const params = await this._getAllParameters({ Path: `${this.pathPrefix}/${service}`, Recursive: true, WithDecryption: true });
     for (const p of params) {
       try {
         const val = JSON.parse(p.Value);
