@@ -20,6 +20,7 @@ function parseArgs() {
   const hab = subparsers.addParser("hab", { addHelp: true });
   hab.addArgument("mode", { choices: ["read", "write"] });
   hab.addArgument("service", { help: "The Hubs service name, e.g. janus-gateway." });
+  hab.addArgument(["--cmd"], { help: "The name of the Habitat binary (e.g. 'hab', 'bio'.)", defaultValue: "hab" });
   hab.addArgument(["--host"], { help: "The Habitat host to talk to.", defaultValue: "localhost" });
   hab.addArgument(["--httpPort"], { help: "The Habitat web API port.", defaultValue: 9631 });
   hab.addArgument(["--controlPort"], { help: "The Habitat suprvisor control port.", defaultValue: 9632 });
@@ -28,6 +29,7 @@ function parseArgs() {
   const ps = subparsers.addParser("ps", { addHelp: true });
   ps.addArgument("mode", { choices: ["read", "write", "delete"] });
   ps.addArgument("service", { help: "The Hubs service name, e.g. janus-gateway." });
+  ps.addArgument(["--prefix"], { help: "An optional prefix for Parameter Store values."});
   ps.addArgument(["--region"], { help: "The AWS region to talk to.", defaultValue: "us-west-1" });
   return parser.parseArgs();
 }
@@ -79,7 +81,7 @@ async function run(args) {
       throw new Error("Habitat binary not found. Please make sure the Habitat CLI is on your PATH.");
     }
 
-    const hab = new configtool.Habitat(args.host, args.httpPort, args.controlPort);
+    const hab = new configtool.Habitat(args.cmd, args.host, args.httpPort, args.controlPort);
     switch (args.mode) {
     case "read": {
       const output = await hab.read(args.service, args.group);
@@ -99,7 +101,7 @@ async function run(args) {
   }
 
   case "ps": {
-    const ps = new configtool.ParameterStore({ region: args.region });
+    const ps = new configtool.ParameterStore({ region: args.region }, args.prefix);
     switch (args.mode) {
     case "read": {
       const output = await ps.read(args.service);
