@@ -40,11 +40,10 @@ function promisifyService(service, methodNames) {
 }
 
 class ParameterStore {
-  constructor(ssmOptions, pathPrefix = null, requestsPerSecond = 3) {
+  constructor(ssmOptions, requestsPerSecond = 3) {
     // experimentally, the free tier requests per second PS can handle seems south of 4
     const ssm = new AWS.SSM(ssmOptions);
     this.throttle = new PromiseThrottle({ requestsPerSecond });
-    this.pathPrefix = pathPrefix || "";
     this.wrappers = promisifyService(ssm, ['deleteParameters', 'getParametersByPath', 'putParameter']);
   }
 
@@ -55,13 +54,13 @@ class ParameterStore {
     });
   }
 
-  async _putSubtree(path, subtree) {
+  async _putSubtree(path, config) {
     const results = [];
-    for (const k in subtree) {
-      const v = subtree[k];
+    for (const k in config) {
+      const v = config[k];
       const subpath = `${path}/${k}`;
       if (Array.isArray(v)) {
-        results.push(this._putValue(subpath, v));
+        results.push(this._putSubtree(subpath, v));
       } else if (typeof v === 'object') {
         results.push(this._putSubtree(subpath, v));
       } else {
@@ -85,36 +84,37 @@ class ParameterStore {
     return result;
   }
 
-  async delete(service) {
-    const params = await this._getAllParameters({ Path: `${this.pathPrefix}/${service}`, Recursive: true });
+  async write(prefix, config) {
+    return this._putSubtree(`/${prefix}`, config);
+  }
+
+  async delete(prefix) {
+    const params = await this._getAllParameters({ Path: `/${prefix}`, Recursive: true });
     const names = params.map(p => p.Name);
     const results = [];
     for (let i = 0; i < names.length; i += 10) { // API only lets you delete ten at once
       results.push(this.throttle.add(() => {
         const toDelete = names.slice(i, i + 10);
-        debug(`Deleting parameters for /${service} (${i + 1}-${i + toDelete.length}/${names.length})...`);
+        debug(`Deleting parameters underneath ${prefix} (${i + 1}-${i + toDelete.length}/${names.length})...`);
         return this.wrappers.deleteParameters({ Names: toDelete });
       }));
     }
     return Promise.all(results);
   }
 
-  async write(service, config) {
-    return this._putSubtree(`${this.pathPrefix}/${service}`, config);
-  }
-
-  async read(service) {
+  async read(prefix) {
     let pairs = [];
-    const params = await this._getAllParameters({ Path: `${this.pathPrefix}/${service}`, Recursive: true, WithDecryption: true });
+    const params = await this._getAllParameters({ Path: `/${prefix}`, Recursive: true, WithDecryption: true });
     for (const p of params) {
       try {
         const val = JSON.parse(p.Value);
-        pairs.push([nameToPath(p.Name), val]);
+        const deprefixed = p.Name.slice(prefix.length + 1);
+        pairs.push([nameToPath(deprefixed), val]);
       } catch (err) {
         debug(`Failed to read non-JSON config value: ${p.Name} = ${p.Value}`);
       }
     }
-    return treeify(pairs)[service];
+    return treeify(pairs);
   }
 }
 
