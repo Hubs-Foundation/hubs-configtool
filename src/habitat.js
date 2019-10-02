@@ -32,7 +32,30 @@ function fetchConfig(host, port, service, group) {
   return new Promise((resolve, reject) => {
     const req = http.request({ method: 'GET', host, port, path }, res => {
       if (res.statusCode === 404) {
-        reject(new Error(`Service group ${service}.${group} not found.`));
+        const path = "/services";
+        const req = http.request({ method: 'GET', host, port, path }, res => {
+          let body = "";
+          res.on("data", chunk => body += chunk);
+          res.on("end", () => {
+            try {
+              const services = JSON.parse(body);
+              if (services.find(s => s.service_group.startsWith(`${service}.${group}@`) || s.service_group === `${service}.${group}`)) {
+                // Service is in supervisor, but no configs yet (404)
+                debug(`No configs for ${service}.${group}, initializing.`);
+                resolve({});
+              } else {
+                reject(new Error(`Service group ${service}.${group} not found.`));
+              }
+            } catch (err) {
+              reject(err);
+            }
+          });
+        });
+
+        req.on('error', err => {
+          reject(err);
+        });
+        req.end();
       } else if (res.statusCode !== 200) {
         reject(new Error(`Error fetching config for ${service}.${group}: ${res.statusMessage}.`));
       } else {
