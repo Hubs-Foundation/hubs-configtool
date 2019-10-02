@@ -27,7 +27,7 @@ function promisifyCommand(cmd, args, stdin) {
 }
 
 // GETs a URL given the provided HTTP options and resolves to the JSON body contents.
-function fetchConfig(host, port, service, group) {
+function fetchConfig(host, port, service, group, org) {
   const path = `/services/${service}/${group}/config`;
   return new Promise((resolve, reject) => {
     const req = http.request({ method: 'GET', host, port, path }, res => {
@@ -39,7 +39,9 @@ function fetchConfig(host, port, service, group) {
           res.on("end", () => {
             try {
               const services = JSON.parse(body);
-              if (services.find(s => s.service_group.startsWith(`${service}.${group}@`) || s.service_group === `${service}.${group}`)) {
+              const orgSuffix = org ? `@${org}` : "";
+
+              if (services.find(s => s.service_group === `${service}.${group}${orgSuffix}`)) {
                 // Service is in supervisor, but no configs yet (404)
                 debug(`No configs for ${service}.${group}, initializing.`);
                 resolve({});
@@ -109,17 +111,18 @@ class Habitat {
     this.supPort = supPort;
   }
 
-  async write(service, group, config, version) {
+  async write(service, group, org, config, version) {
     const remote =`${this.supHost}:${this.supPort}`;
-    const args = ["config", "apply", "-r", remote, `${service}.${group}`, version];
+    const orgSuffix = org ? `@${org}` : "";
+    const args = ["config", "apply", "-r", remote, `${service}.${group}${orgSuffix}`, version];
     const input = toml.stringify(config);
-    debug(`Invoking hab: hab ${args.join(" ")}`);
+    debug(`Invoking hab: ${this.habCommand} ${args.join(" ")}`);
     return promisifyCommand(this.habCommand, args, input);
   }
 
-  async read(service, group) {
+  async read(service, group, org) {
     debug(`Requesting Habitat config for ${service}.${group}.`);
-    const res = await fetchConfig(this.httpHost, this.httpPort, service, group);
+    const res = await fetchConfig(this.httpHost, this.httpPort, service, group, org);
     return sanitizeTree(res);
   }
 }
