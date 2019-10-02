@@ -39,7 +39,7 @@ function fetchConfig(host, port, service, group) {
           res.on("end", () => {
             try {
               const services = JSON.parse(body);
-              if (services.find(s => s.service_group.startsWith(`${service}.${group}`)) {
+              if (services.find(s => s.service_group.startsWith(`${service}.${group}@` || s.service_group === `${service}.${group}`)) {
                 // Service is in supervisor, but no configs yet (404)
                 debug(`No configs for ${service}.${group}, initializing.`);
                 resolve({});
