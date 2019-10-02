@@ -25,6 +25,7 @@ function parseArgs() {
   hab.addArgument(["--httpPort"], { help: "The Habitat web API port.", defaultValue: 9631 });
   hab.addArgument(["--controlPort"], { help: "The Habitat suprvisor control port.", defaultValue: 9632 });
   hab.addArgument(["--group"], { help: "The Habitat service group, e.g. prod.", defaultValue: "default" });
+  hab.addArgument(["--org"], { help: "The Habitat ring org, e.g. mozillareality.", defaultValue: null });
 
   const ps = subparsers.addParser("ps", { addHelp: true });
   ps.addArgument("mode", { choices: ["read", "write", "delete"] });
@@ -83,7 +84,7 @@ async function run(args) {
     const hab = new configtool.Habitat(args.cmd, args.host, args.httpPort, args.controlPort);
     switch (args.mode) {
     case "read": {
-      const output = await hab.read(args.service, args.group);
+      const output = await hab.read(args.service, args.group, args.org);
       console.log(serialize(output, args.format));
       return;
     }
@@ -91,7 +92,7 @@ async function run(args) {
       // version is by convention across hubs habitat stuff
       const version = Math.floor(Date.now() / 1000);
       const input = deserialize(await readToEnd(process.stdin), args.format);
-      await hab.write(args.service, args.group, input, version);
+      await hab.write(args.service, args.group, args.org, input, version);
       return;
     }
     default: throw new Error(`Invalid mode '${args.mode}'.`);
