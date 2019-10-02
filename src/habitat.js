@@ -114,6 +114,7 @@ class Habitat {
     const args = ["config", "apply", "-r", remote, `${service}.${group}`, version];
     const input = toml.stringify(config);
     debug(`Invoking hab: ${this.habCommand} ${args.join(" ")}`);
+    debug(input); // TODO remove
     return promisifyCommand(this.habCommand, args, input);
   }
 
