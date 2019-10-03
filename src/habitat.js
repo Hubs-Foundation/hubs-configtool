@@ -28,7 +28,9 @@ function promisifyCommand(cmd, args, stdin) {
 
 // GETs a URL given the provided HTTP options and resolves to the JSON body contents.
 function fetchConfig(host, port, service, group, org) {
-  const path = `/services/${service}/${group}/config`;
+  const orgSuffix = org ? `@${org}` : "";
+  const path = `/services/${service}/${group}${orgSuffix}/config`;
+
   return new Promise((resolve, reject) => {
     const req = http.request({ method: 'GET', host, port, path }, res => {
       if (res.statusCode === 404) {
@@ -39,14 +41,13 @@ function fetchConfig(host, port, service, group, org) {
           res.on("end", () => {
             try {
               const services = JSON.parse(body);
-              const orgSuffix = org ? `@${org}` : "";
 
               if (services.find(s => s.service_group === `${service}.${group}${orgSuffix}`)) {
                 // Service is in supervisor, but no configs yet (404)
-                debug(`No configs for ${service}.${group}, initializing.`);
+                debug(`No configs for ${service}.${group}${orgSuffix}, initializing.`);
                 resolve({});
               } else {
-                reject(new Error(`Service group ${service}.${group} not found.`));
+                reject(new Error(`Service group ${service}.${group}${orgSuffix} not found.`));
               }
             } catch (err) {
               reject(err);
