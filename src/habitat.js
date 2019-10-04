@@ -26,10 +26,40 @@ function promisifyCommand(cmd, args, stdin) {
   });
 }
 
+function hasServiceGroup(host, port, service, group, org) {
+  const path = `/services/${service}/${group}${org ? `@${org}` : ""}/config`;
+
+  return new Promise((resolve, reject) => {
+    const req = http.request({ method: 'GET', host, port, path }, res => {
+      if (res.statusCode === 404) {
+        const req = http.request({ method: 'GET', host, port, path: "/services" }, res => {
+          let body = "";
+          res.on("data", chunk => body += chunk);
+          res.on("end", () => {
+            try {
+              resolve(!!JSON.parse(body).find(s => s.service_group === `${service}.${group}${orgSuffix}`));
+            } catch (err) {
+              reject(err);
+            }
+          });
+        });
+
+        req.on('error', reject);
+        req.end();
+      } else if (res.statusCode !== 200) {
+        reject(new Error(`Error fetching config for ${service}.${group}: ${res.statusMessage}.`));
+      } else {
+        resolve(true);
+      }
+    });
+    req.on('error', reject);
+    req.end();
+  });
+}
+
 // GETs a URL given the provided HTTP options and resolves to the JSON body contents.
 function fetchConfig(host, port, service, group, org) {
-  const orgSuffix = org ? `@${org}` : "";
-  const path = `/services/${service}/${group}${orgSuffix}/config`;
+  const path = `/services/${service}/${group}${org ? `@${org}` : ""}/config`;
 
   return new Promise((resolve, reject) => {
     const req = http.request({ method: 'GET', host, port, path }, res => {
@@ -55,9 +85,7 @@ function fetchConfig(host, port, service, group, org) {
           });
         });
 
-        req.on('error', err => {
-          reject(err);
-        });
+        req.on('error', reject);
         req.end();
       } else if (res.statusCode !== 200) {
         reject(new Error(`Error fetching config for ${service}.${group}: ${res.statusMessage}.`));
@@ -73,9 +101,7 @@ function fetchConfig(host, port, service, group, org) {
         });
       }
     });
-    req.on('error', err => {
-      reject(err);
-    });
+    req.on('error', reject);
     req.end();
   });
 }
@@ -125,6 +151,10 @@ class Habitat {
     debug(`Requesting Habitat config for ${service}.${group}.`);
     const res = await fetchConfig(this.httpHost, this.httpPort, service, group, org);
     return sanitizeTree(res);
+  }
+
+  async has(service, group, org) {
+    return await hasServiceGroup(this.httpPost, this.httpPort, service, group, org);
   }
 }
 
