@@ -27,7 +27,8 @@ function promisifyCommand(cmd, args, stdin) {
 }
 
 function hasServiceGroup(host, port, service, group, org) {
-  const path = `/services/${service}/${group}${org ? `@${org}` : ""}/config`;
+  const orgSuffix = org ? `@${org}` : "";
+  const path = `/services/${service}/${group}${orgSuffix}/config`;
 
   return new Promise((resolve, reject) => {
     const req = http.request({ method: 'GET', host, port, path }, res => {
@@ -59,7 +60,8 @@ function hasServiceGroup(host, port, service, group, org) {
 
 // GETs a URL given the provided HTTP options and resolves to the JSON body contents.
 function fetchConfig(host, port, service, group, org) {
-  const path = `/services/${service}/${group}${org ? `@${org}` : ""}/config`;
+  const orgSuffix = org ? `@${org}` : "";
+  const path = `/services/${service}/${group}${orgSuffix}/config`;
 
   return new Promise((resolve, reject) => {
     const req = http.request({ method: 'GET', host, port, path }, res => {
