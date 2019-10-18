@@ -49,8 +49,16 @@ class ParameterStore {
 
   async _putValue(path, val) {
     return this.throttle.add(() => {
-      debug(`Writing parameter ${path} = ${val}...`);
-      return this.wrappers.putParameter({ Name: path, Value: JSON.stringify(val), Overwrite: true, Type: "SecureString" });
+
+      if (val === "") {
+        debug(`Removing parameter ${path} ...`);
+        // By convention, the empty string will remove the value
+        // Use deleteParameters explicitly since it tolerates non-existant parameters
+        return this.wrappers.deleteParameters({ Names: [path] });
+      } else {
+        debug(`Writing parameter ${path} = ${val}...`);
+        return this.wrappers.putParameter({ Name: path, Value: JSON.stringify(val), Overwrite: true, Type: "SecureString" });
+      }
     });
   }
 
