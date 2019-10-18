@@ -50,7 +50,7 @@ class ParameterStore {
   async _putValue(path, val) {
     return this.throttle.add(() => {
       debug(`Writing parameter ${path} = ${val}...`);
-      return this.wrappers.putParameter({ Name: path, Value: JSON.stringify(val), Overwrite: true, Type: "String" });
+      return this.wrappers.putParameter({ Name: path, Value: JSON.stringify(val), Overwrite: true, Type: "SecureString" });
     });
   }
 
