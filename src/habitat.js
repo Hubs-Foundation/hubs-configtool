@@ -58,7 +58,6 @@ function hasServiceGroup(host, port, service, group, org) {
   });
 }
 
-// GETs a URL given the provided HTTP options and resolves to the JSON body contents.
 function fetchConfig(host, port, service, group, org) {
   const orgSuffix = org ? `@${org}` : "";
   const path = `/services/${service}/${group}${orgSuffix}/config`;
@@ -97,6 +96,39 @@ function fetchConfig(host, port, service, group, org) {
         res.on("end", () => {
           try {
             resolve(JSON.parse(body));
+          } catch (err) {
+            reject(err);
+          }
+        });
+      }
+    });
+    req.on('error', reject);
+    req.end();
+  });
+}
+
+function fetchVersion(host, port, service, group, org) {
+  const orgSuffix = org ? `@${org}` : "";
+  const path = `/census`;
+
+  return new Promise((resolve, reject) => {
+    const req = http.request({ method: 'GET', host, port, path }, res => {
+      if (res.statusCode !== 200) {
+        reject(new Error(`Error fetching config for ${service}.${group}: ${res.statusMessage}.`));
+      } else {
+        let body = "";
+        res.on("data", chunk => body += chunk);
+        res.on("end", () => {
+          try {
+            const orgSuffix = org ? `@${org}` : "";
+            const serviceGroup = JSON.parse(body)["census_groups"][`${service}.${group}${orgSuffix}`];
+            const incarnation = serviceGroup && serviceGroup["service_config"] && serviceGroup["service_config"]["incarnation"];
+
+            if (incarnation) {
+              resolve(parseInt(incarnation));
+            } else {
+              resolve(null);
+            }
           } catch (err) {
             reject(err);
           }
@@ -153,6 +185,13 @@ class Habitat {
     debug(`Requesting Habitat config for ${service}.${group}.`);
     const res = await fetchConfig(this.httpHost, this.httpPort, service, group, org);
     return sanitizeTree(res);
+  }
+
+  async getVersion(service, group, org) {
+    debug(`Requesting Habitat config version for ${service}.${group}.`);
+    const res = await fetchVersion(this.httpHost, this.httpPort, service, group, org);
+    console.log(res);
+    return res;
   }
 
   async has(service, group, org) {
