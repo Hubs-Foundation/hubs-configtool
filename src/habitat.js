@@ -189,9 +189,7 @@ class Habitat {
 
   async getVersion(service, group, org) {
     debug(`Requesting Habitat config version for ${service}.${group}.`);
-    const res = await fetchVersion(this.httpHost, this.httpPort, service, group, org);
-    console.log(res);
-    return res;
+    return await fetchVersion(this.httpHost, this.httpPort, service, group, org);
   }
 
   async has(service, group, org) {
