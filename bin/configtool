@@ -101,7 +101,7 @@ async function run(args) {
   }
 
   case "ps": {
-    const ps = new configtool.ParameterStore({ region: args.region });
+    const ps = new configtool.ParameterStore("aws", { region: args.region });
     switch (args.mode) {
     case "read": {
       const output = await ps.read(args.prefix);
