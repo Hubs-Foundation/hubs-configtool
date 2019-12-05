@@ -3,7 +3,7 @@ const util = require("util");
 const PromiseThrottle = require('promise-throttle');
 const AWS = require("aws-sdk");
 const debug = require("debug")("configtool:ps");
-const { LevelParameters } = require("level-parameters");
+const { LevelParameters } = require("./level-parameters");
 
 // Takes a series of [path, value] pairs, e.g. [["foo", "baz"], 1], [["foo", "bar"], 2]],
 // and converts them into a Javascript object, e.g. { "foo": { "bar": 2 }, { "baz": 1 } }.
@@ -43,19 +43,25 @@ function promisifyService(service, methodNames) {
 class ParameterStore {
   constructor(storeType, options) {
     this.storeType = storeType;
-    let store;
 
     if (storeType === "aws") {
-      store = new AWS.SSM(options);
-      this.wrappers = promisifyService(ssm, ['deleteParameters', 'getParametersByPath', 'putParameter']);
-
       // experimentally, the free tier requests per second PS can handle seems south of 4
-      this.throttle = new PromiseThrottle({ requestsPerSecond: options.requestsPerSecond || 3 });
+      const requestsPerSection = options.requestsPerSecond || 3;
+      delete options.requestsPerSecond;
+
+      this.throttle = new PromiseThrottle({ requestsPerSecond });
+      this.store = promisifyService(new AWS.SSM(options), ['deleteParameters', 'getParametersByPath', 'putParameter']);
     } else if (storeType === "leveldb") {
-      this.wrappers = new LevelParameters(options);
       this.throttle = new PromiseThrottle({ requestsPerSecond: 1000 });
+      this.store = new LevelParameters(options);
     } else {
       throw new Error(`Unsupported store type: ${type}`);
+    }
+  }
+
+  async init() {
+    if (this.storeType === "leveldb") {
+      await this.store.init();
     }
   }
 
@@ -66,11 +72,11 @@ class ParameterStore {
         debug(`Removing parameter ${path} ...`);
         // By convention, the empty string will remove the value
         // Use deleteParameters explicitly since it tolerates non-existant parameters
-        return this.wrappers.deleteParameters({ Names: [path] });
+        return this.store.deleteParameters({ Names: [path] });
       } else {
         debug(`Writing parameter ${path} = ${val}...`);
         const Type = this.storeType === "aws" ? "SecureString" : "String";
-        return this.wrappers.putParameter({ Name: path, Value: JSON.stringify(val), Overwrite: true, Type });
+        return this.store.putParameter({ Name: path, Value: JSON.stringify(val), Overwrite: true, Type });
       }
     });
   }
@@ -97,7 +103,7 @@ class ParameterStore {
     do {
       const res = await this.throttle.add(() => {
         debug(`Requesting parameters for ${opts.Path} (${++i})...`);
-        return this.wrappers.getParametersByPath(opts);
+        return this.store.getParametersByPath(opts);
       });
       Array.prototype.push.apply(result, res.Parameters);
       opts.NextToken = res.NextToken;
@@ -117,7 +123,7 @@ class ParameterStore {
       results.push(this.throttle.add(() => {
         const toDelete = names.slice(i, i + 10);
         debug(`Deleting parameters underneath ${prefix} (${i + 1}-${i + toDelete.length}/${names.length})...`);
-        return this.wrappers.deleteParameters({ Names: toDelete });
+        return this.store.deleteParameters({ Names: toDelete });
       }));
     }
     return Promise.all(results);

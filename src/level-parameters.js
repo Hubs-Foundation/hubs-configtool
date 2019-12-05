@@ -20,8 +20,21 @@ async function keyExists(db, key) {
 //
 // Note that not all features are implemented, just enough to support the ParameterStore interface.
 class LevelParameters {
-  async constructor({ location }) {
-    this.db = await new Promise(res => level(location, {}, res));
+  constructor({ location }) {
+    this.location = location;
+  }
+
+  async init() {
+    await new Promise((res, rej) => {
+      level(this.location, {}, (err, db) => {
+        if (err) {
+          rej(err);
+        }
+
+        this.db = db;
+        res();
+      });
+    });
   }
 
   async deleteParameters({ Names }) {
@@ -51,11 +64,9 @@ class LevelParameters {
 
     return new Promise((res, rej) => {
       this.db.createReadStream({ gte: Path })
-        .on('data', { Name, Value } => {
-          Parameters.push({ Name, Value, Type: "String" })
-        })
+        .on('data', ({ key, value }) => Parameters.push({ Name: key, Value: value, Type: "String" }))
         .on('error', rej)
-        .on('end', res({ Parameters, NextToken: null }));
+        .on('end', () => res({ Parameters, NextToken: null }));
     });
   }
 
