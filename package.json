@@ -22,6 +22,7 @@
     "argparse": "^1.0.10",
     "aws-sdk": "^2.518.0",
     "debug": "^4.1.1",
+    "level": "^6.0.0",
     "promise-throttle": "^1.0.1",
     "safe-stable-stringify": "^1.1.0"
   }

@@ -3,6 +3,7 @@ const util = require("util");
 const PromiseThrottle = require('promise-throttle');
 const AWS = require("aws-sdk");
 const debug = require("debug")("configtool:ps");
+const { LevelParameters } = require("level-parameters");
 
 // Takes a series of [path, value] pairs, e.g. [["foo", "baz"], 1], [["foo", "bar"], 2]],
 // and converts them into a Javascript object, e.g. { "foo": { "bar": 2 }, { "baz": 1 } }.
@@ -40,11 +41,22 @@ function promisifyService(service, methodNames) {
 }
 
 class ParameterStore {
-  constructor(ssmOptions, requestsPerSecond = 3) {
-    // experimentally, the free tier requests per second PS can handle seems south of 4
-    const ssm = new AWS.SSM(ssmOptions);
-    this.throttle = new PromiseThrottle({ requestsPerSecond });
-    this.wrappers = promisifyService(ssm, ['deleteParameters', 'getParametersByPath', 'putParameter']);
+  constructor(storeType, options) {
+    this.storeType = storeType;
+    let store;
+
+    if (storeType === "aws") {
+      store = new AWS.SSM(options);
+      this.wrappers = promisifyService(ssm, ['deleteParameters', 'getParametersByPath', 'putParameter']);
+
+      // experimentally, the free tier requests per second PS can handle seems south of 4
+      this.throttle = new PromiseThrottle({ requestsPerSecond: options.requestsPerSecond || 3 });
+    } else if (storeType === "leveldb") {
+      this.wrappers = new LevelParameters(options);
+      this.throttle = new PromiseThrottle({ requestsPerSecond: 1000 });
+    } else {
+      throw new Error(`Unsupported store type: ${type}`);
+    }
   }
 
   async _putValue(path, val) {
@@ -57,7 +69,8 @@ class ParameterStore {
         return this.wrappers.deleteParameters({ Names: [path] });
       } else {
         debug(`Writing parameter ${path} = ${val}...`);
-        return this.wrappers.putParameter({ Name: path, Value: JSON.stringify(val), Overwrite: true, Type: "SecureString" });
+        const Type = this.storeType === "aws" ? "SecureString" : "String";
+        return this.wrappers.putParameter({ Name: path, Value: JSON.stringify(val), Overwrite: true, Type });
       }
     });
   }
