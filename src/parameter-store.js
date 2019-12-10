@@ -46,7 +46,7 @@ class ParameterStore {
 
     if (storeType === "aws") {
       // experimentally, the free tier requests per second PS can handle seems south of 4
-      const requestsPerSection = options.requestsPerSecond || 3;
+      const requestsPerSecond = options.requestsPerSecond || 3;
       delete options.requestsPerSecond;
 
       this.throttle = new PromiseThrottle({ requestsPerSecond });
