@@ -2,7 +2,7 @@ const level = require("level");
 
 async function keyExists(db, key) {
   return new Promise((res, rej) => {
-    db.get(name, err => {
+    db.get(key, err => {
       if (err) {
         if (err.notFound) {
           res(false);
