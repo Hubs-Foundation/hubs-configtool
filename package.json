@@ -20,7 +20,7 @@
   "dependencies": {
     "@iarna/toml": "^2.2.3",
     "argparse": "^1.0.10",
-    "aws-sdk": "^2.518.0",
+    "aws-sdk": "^2.1373.0",
     "debug": "^4.1.1",
     "level": "^6.0.0",
     "promise-throttle": "^1.0.1",
