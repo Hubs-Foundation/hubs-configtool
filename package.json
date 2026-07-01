@@ -3,7 +3,7 @@
   "version": "0.0.1",
   "private": true,
   "description": "A tool for reading and writing Hubs configs from the various stores.",
-  "repository": "github:MozillaReality/hubs-configtool",
+  "repository": "github:Hubs-Foundation/hubs-configtool",
   "main": "src/index.js",
   "scripts": {
     "lint": "eslint src",
